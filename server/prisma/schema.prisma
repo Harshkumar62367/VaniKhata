@@ -1,0 +1,20 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Order {
+  id                Int      @id @default(autoincrement())
+  raw_transcript    String?
+  items             Json     @default("[]")
+  total_estimate    Float    @default(0)
+  is_credit         Boolean  @default(false)
+  language_detected String?
+  sentiment         String?
+  smart_summary     String?
+  created_at        DateTime @default(now())
+}
