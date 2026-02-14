@@ -58,17 +58,22 @@ app.post('/api/process-audio', upload.single('audio'), async (req, res) => {
         - Extract ONLY items explicitly mentioned in the audio. 
         - Do NOT hallucinate or infer items (e.g. do not add 'sugar' if user only said 'milk').
         - If the audio is background noise or unclear, return an empty items list.
+        - ESTIMATE PRICES: You MUST estimate the price of each item in INR (Indian Rupees) based on typical market rates if not mentioned. e.g. Milk packet ~ ₹25, Maggi ~ ₹14.
         
         Tasks:
         1. Detect the language/dialect (e.g., Hinglish, Kannada-English, Hindi).
         2. Extract items and quantities into a JSON list. Translate items to English if they are in local language.
-        3. Determine if it's 'Udhaar' (credit) based on phrases like 'khate mein', 'baad mein dunga', or 'kal paise dungi'.
+        3. CRITICAL TASK: Detecting 'is_credit' (Udhaar). 
+           Set "is_credit": true if you hear ANY of these phrases or their variations in any Indian dialect:
+           - Hindi/Hinglish: "khate mein likh lo", "baad mein dunga", "kal dungi", "udhaar", "paisa kal le lena", "diary mein chadha do", "agle mahine dunga".
+           - Kannada: "khatege bari", "naale koduttene", "udari".
+           - General Intent: Any mention of delayed payment or recording the transaction in a book/account.
         4. Identify localized brands (e.g., 'Nandini milk', 'Parle-G').
         5. Identify sentiment (happy, neutral, frustrated).
-        6. Generate a 'smart_summary' suggestion (e.g. "Customer asked for milk, suggest bread", or "Customer is frustrated, offer discount").
+        6. Generate a 'smart_summary' suggestion.
         7. Return ONLY a valid JSON object with no markdown formatting: 
            { 
-             "items": [{"name": "string", "quantity": "string or number", "unit": "string"}], 
+             "items": [{"name": "string", "quantity": "string or number", "unit": "string", "estimated_price_inr": number}], 
              "total_estimate": 0, 
              "is_credit": boolean, 
              "language_detected": "string", 
@@ -132,6 +137,33 @@ app.post('/api/orders', async (req, res) => {
     } catch (error) {
         console.error('Error creating order:', error);
         res.status(500).json({ error: 'Failed to create order', details: error.message });
+    }
+});
+
+// Stats API
+app.get('/api/stats', async (req, res) => {
+    try {
+        const totalOrders = await prisma.order.count();
+        const revenue = await prisma.order.aggregate({
+            _sum: {
+                total_estimate: true
+            }
+        });
+        const totalRevenue = revenue._sum.total_estimate || 0;
+        const avgOrder = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+
+        // Use totalOrders as proxy for customers since we don't track unique users yet
+        const customers = totalOrders;
+
+        res.json({
+            orders: totalOrders,
+            revenue: totalRevenue,
+            avgOrder: avgOrder,
+            customers: customers
+        });
+    } catch (error) {
+        console.error('Error fetching stats:', error);
+        res.status(500).json({ error: 'Failed to fetch stats' });
     }
 });
 

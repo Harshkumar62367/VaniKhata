@@ -38,30 +38,48 @@ const sampleTranscript: TranscriptLine[] = [
 ]
 
 export function TranscriptTile() {
-  const [visibleLines, setVisibleLines] = useState(0)
+  const [transcripts, setTranscripts] = useState<TranscriptLine[]>([])
   const [copied, setCopied] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (visibleLines < sampleTranscript.length) {
-      const timer = setTimeout(() => {
-        setVisibleLines((prev) => prev + 1)
-      }, 1200)
-      return () => clearTimeout(timer)
+    const fetchTranscripts = async () => {
+      try {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
+        const response = await fetch(`${backendUrl}/api/orders`)
+        if (response.ok) {
+          const data = await response.json()
+          const mapped: TranscriptLine[] = data.map((o: any) => ({
+             dialect: o.raw_transcript || "Voice Audio",
+             translation: o.smart_summary || "Processed Order", 
+             language: o.language_detected || "Detected",
+             timestamp: new Date(o.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }))
+          setTranscripts(mapped)
+        }
+      } catch (error) {
+        console.error("Failed to fetch transcripts:", error)
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [visibleLines])
+
+    fetchTranscripts()
+    const interval = setInterval(fetchTranscripts, 60000) // Poll every 1 minute
+    return () => clearInterval(interval)
+  }, [])
 
   const handleCopy = () => {
-    const text = sampleTranscript
-      .slice(0, visibleLines)
+    const text = transcripts
       .map((line) => `[${line.language}] ${line.dialect}\n→ ${line.translation}`)
       .join("\n\n")
     navigator.clipboard.writeText(text)
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setTimeout(() => setCopied(false), 60000)
   }
 
   return (
-    <div className="flex flex-col rounded-lg border border-border bg-card">
+    <div className="flex flex-col h-full rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border p-4">
         <div className="flex items-center gap-2">
           <Languages className="h-4 w-4 text-primary" />
@@ -86,14 +104,15 @@ export function TranscriptTile() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 p-4">
-        {sampleTranscript.slice(0, visibleLines).map((line, index) => (
+      <div className="flex flex-col gap-3 p-4 overflow-y-auto max-h-[300px]">
+        {loading && transcripts.length === 0 ? (
+           <div className="flex flex-col items-center justify-center py-8">
+             <p className="text-xs text-muted-foreground">Loading transcripts...</p>
+           </div>
+        ) : transcripts.map((line, index) => (
           <div
             key={index}
-            className="rounded-lg border border-border bg-secondary/30 p-3 transition-all duration-500"
-            style={{
-              animation: "fadeSlideIn 0.4s ease-out forwards",
-            }}
+            className="rounded-lg border border-border bg-secondary/30 p-3"
           >
             <div className="mb-1.5 flex items-center justify-between">
               <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
@@ -110,36 +129,15 @@ export function TranscriptTile() {
             </div>
           </div>
         ))}
-
-        {visibleLines < sampleTranscript.length && (
-          <div className="flex items-center gap-2 p-2">
-            <div className="h-2 w-2 rounded-full bg-emerald animate-pulse" />
-            <span className="text-xs text-muted-foreground">Transcribing...</span>
-          </div>
-        )}
-
-        {visibleLines === 0 && (
-          <div className="flex flex-col items-center justify-center py-8">
-            <Languages className="mb-2 h-8 w-8 text-muted-foreground/30" />
-            <p className="text-xs text-muted-foreground">
-              Start recording to see the live transcript
-            </p>
-          </div>
-        )}
+         {transcripts.length === 0 && !loading && (
+           <div className="flex flex-col items-center justify-center py-8">
+             <Languages className="mb-2 h-8 w-8 text-muted-foreground/30" />
+             <p className="text-xs text-muted-foreground">
+               No transcripts yet
+             </p>
+           </div>
+         )}
       </div>
-
-      <style jsx>{`
-        @keyframes fadeSlideIn {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </div>
   )
 }
