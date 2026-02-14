@@ -14,9 +14,9 @@ const port = process.env.PORT || 8000;
 
 // Middleware
 app.use(cors({
-    origin: ['https://vani-khata.vercel.app', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
+    origin: ['https://vani-khata.vercel.app', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'https://evident-catie-harsh-projects-3a2ca74b.koyeb.app'],
     credentials: true,
-    methods: ['GET', 'POST']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
